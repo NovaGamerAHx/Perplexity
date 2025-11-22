@@ -3,84 +3,223 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Perplex-Clone | موتور جستجوی هوشمند</title>
-    <style>
-        body { font-family: 'Segoe UI', Tahoma, sans-serif; background: #f0f2f5; color: #333; max-width: 900px; margin: 0 auto; padding: 20px; }
-        .container { background: white; padding: 30px; border-radius: 15px; box-shadow: 0 5px 20px rgba(0,0,0,0.05); }
-        h1 { color: #2c3e50; text-align: center; }
-        
-        .input-group { margin-bottom: 20px; }
-        input[type="text"] { width: 100%; padding: 15px; border: 2px solid #e0e0e0; border-radius: 10px; font-size: 1.1rem; box-sizing: border-box; }
-        input[type="file"] { margin-top: 10px; }
-        
-        button { width: 100%; background: #3498db; color: white; border: none; padding: 15px; border-radius: 10px; font-size: 1.1rem; cursor: pointer; font-weight: bold; transition: 0.3s; margin-top: 15px; }
-        button:hover { background: #2980b9; }
-        button:disabled { background: #bdc3c7; }
-
-        #output-area { margin-top: 30px; display: none; }
-        
-        .steps-box { background: #f8f9fa; padding: 15px; border-radius: 10px; margin-bottom: 20px; border: 1px solid #e9ecef; font-size: 0.9rem; color: #555; }
-        .step-item { margin-bottom: 5px; display: flex; align-items: center; gap: 10px; }
-        
-        .answer-box { line-height: 1.8; font-size: 1.05rem; color: #222; }
-        .sources-box { margin-top: 20px; padding-top: 10px; border-top: 1px solid #eee; font-size: 0.85rem; color: #666; }
-        .source-tag { display: inline-block; background: #eef2f5; padding: 5px 10px; border-radius: 15px; margin: 5px; text-decoration: none; color: #3498db; }
-        
-        /* Markdown styling simulation */
-        .answer-box h2 { font-size: 1.3rem; color: #333; }
-        .answer-box strong { color: #000; }
-    </style>
-    <!-- کتابخانه برای نمایش زیبای مارک‌داون -->
+    <title>Perplex-AI | دستیار هوشمند پژوهشی</title>
+    <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+        :root {
+            --primary: #2563eb;
+            --bg: #f1f5f9;
+            --card-bg: #ffffff;
+            --text: #1e293b;
+            --border: #e2e8f0;
+        }
+        body {
+            font-family: 'Vazirmatn', sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            min-height: 100vh;
+        }
+        .container {
+            width: 100%;
+            max-width: 900px;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .header h1 { color: var(--primary); margin: 0; }
+        
+        .search-box {
+            background: var(--card-bg);
+            padding: 25px;
+            border-radius: 16px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+        
+        input[type="text"] {
+            width: 100%;
+            padding: 15px;
+            border: 2px solid var(--border);
+            border-radius: 12px;
+            font-family: inherit;
+            font-size: 1.1rem;
+            box-sizing: border-box;
+            outline: none;
+            transition: 0.2s;
+        }
+        input[type="text"]:focus { border-color: var(--primary); }
+        
+        .file-upload {
+            margin-top: 15px;
+            font-size: 0.9rem;
+            color: #64748b;
+        }
+
+        button.main-btn {
+            width: 100%;
+            background: var(--primary);
+            color: white;
+            padding: 15px;
+            border: none;
+            border-radius: 12px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            cursor: pointer;
+            margin-top: 20px;
+            transition: 0.2s;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+        }
+        button.main-btn:hover { background: #1d4ed8; }
+        button.main-btn:disabled { background: #94a3b8; cursor: wait; }
+
+        /* Tabs Styling */
+        .results-container { display: none; margin-top: 30px; }
+        
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+            overflow-x: auto;
+            padding-bottom: 5px;
+        }
+        .tab-btn {
+            padding: 10px 20px;
+            background: #e2e8f0;
+            border: none;
+            border-radius: 20px;
+            cursor: pointer;
+            font-family: inherit;
+            font-weight: 500;
+            color: #475569;
+            transition: 0.3s;
+            white-space: nowrap;
+        }
+        .tab-btn.active {
+            background: var(--primary);
+            color: white;
+            box-shadow: 0 4px 10px rgba(37, 99, 235, 0.3);
+        }
+
+        .tab-content {
+            background: var(--card-bg);
+            padding: 25px;
+            border-radius: 16px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+            display: none;
+            animation: fadeIn 0.4s;
+        }
+        .tab-content.active { display: block; }
+
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* Content Styling */
+        .query-tag { background: #dbeafe; color: #1e40af; padding: 8px 15px; border-radius: 8px; display: block; margin-bottom: 10px; }
+        .source-card { border: 1px solid var(--border); padding: 15px; border-radius: 10px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
+        .source-card a { color: var(--primary); text-decoration: none; font-weight: bold; }
+        .chunk-card { background: #f8fafc; padding: 15px; border-radius: 8px; border-right: 4px solid var(--primary); margin-bottom: 15px; font-size: 0.95rem; line-height: 1.6; }
+        .answer-text { line-height: 1.8; font-size: 1.05rem; color: #334155; }
+        .answer-text h2 { font-size: 1.3rem; margin-top: 20px; }
+        
+        .loader { width: 20px; height: 20px; border: 3px solid #fff; border-bottom-color: transparent; border-radius: 50%; display: inline-block; box-sizing: border-box; animation: rotation 1s linear infinite; display: none; }
+        @keyframes rotation { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
 </head>
 <body>
 
 <div class="container">
-    <h1>🌐 موتور جستجوی هوشمند</h1>
-    
-    <div class="input-group">
-        <input type="text" id="prompt" placeholder="هر سوالی دارید بپرسید (مثلا: آخرین اخبار هوش مصنوعی چیست؟)">
-        <div style="margin-top: 10px; font-size: 0.9rem; color: #666;">
-            <label>📄 آپلود فایل متنی (اختیاری): </label>
-            <input type="file" id="file" accept=".txt">
-        </div>
-        <button id="submit-btn" onclick="runAgent()">🚀 جستجو و تحلیل</button>
+    <div class="header">
+        <h1>🧠 دستیار پژوهشی هوشمند</h1>
+        <p style="color: #64748b;">مبتنی بر Gemini 2.0 و جستجوی زنده وب</p>
     </div>
 
-    <div id="output-area">
-        <div class="steps-box" id="steps-container">
-            <strong>⚙️ مراحل انجام کار:</strong>
-            <div id="steps-list"></div>
+    <div class="search-box">
+        <input type="text" id="prompt" placeholder="سوال پژوهشی خود را بپرسید...">
+        <div class="file-upload">
+            <label>📎 ضمیمه فایل متنی (اختیاری): </label>
+            <input type="file" id="file" accept=".txt">
+        </div>
+        <button class="main-btn" id="submit-btn" onclick="runAgent()">
+            <span class="loader" id="loader"></span>
+            <span>شروع تحقیق و جستجو</span>
+        </button>
+    </div>
+
+    <div class="results-container" id="results-area">
+        <div class="tabs">
+            <button class="tab-btn active" onclick="openTab('answer')">💡 پاسخ نهایی</button>
+            <button class="tab-btn" onclick="openTab('queries')">🔍 کوئری‌ها</button>
+            <button class="tab-btn" onclick="openTab('sources')">🌐 منابع یافت شده</button>
+            <button class="tab-btn" onclick="openTab('chunks')">🧩 داده‌های پردازش شده</button>
+            <button class="tab-btn" onclick="openTab('logs')">⚙️ لاگ سیستم</button>
+        </div>
+
+        <div id="answer" class="tab-content active">
+            <div class="answer-text" id="answer-content"></div>
+        </div>
+
+        <div id="queries" class="tab-content">
+            <div id="queries-list"></div>
+        </div>
+
+        <div id="sources" class="tab-content">
+            <div id="sources-list"></div>
+        </div>
+
+        <div id="chunks" class="tab-content">
+            <div id="chunks-list"></div>
         </div>
         
-        <h3>💡 پاسخ هوشمند:</h3>
-        <div class="answer-box" id="answer-content"></div>
-        
-        <div class="sources-box">
-            <strong>🔗 منابع:</strong>
-            <div id="sources-list"></div>
+        <div id="logs" class="tab-content">
+            <div id="logs-list" style="font-family: monospace; color: #555;"></div>
         </div>
     </div>
 </div>
 
 <script>
+    function openTab(tabName) {
+        // Hide all tabs
+        document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        
+        // Show selected
+        document.getElementById(tabName).classList.add('active');
+        // Find button that calls this function (simple matching)
+        event.target.classList.add('active');
+    }
+
+    // Fix for button active state logic above being simple
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            this.classList.add('active');
+        });
+    });
+
     async function runAgent() {
         const prompt = document.getElementById('prompt').value;
         const fileInput = document.getElementById('file');
         const btn = document.getElementById('submit-btn');
+        const loader = document.getElementById('loader');
         
         if (!prompt) return alert("لطفا سوال را وارد کنید");
 
+        // UI Loading
         btn.disabled = true;
-        btn.innerText = "در حال کاوش در وب...";
-        document.getElementById('output-area').style.display = 'none';
-        document.getElementById('steps-list').innerHTML = '';
-        
+        loader.style.display = 'inline-block';
+        document.getElementById('results-area').style.display = 'none';
+
         const formData = new FormData();
         formData.append('prompt', prompt);
-        if (fileInput.files[0]) {
-            formData.append('file', fileInput.files[0]);
-        }
+        if (fileInput.files[0]) formData.append('file', fileInput.files[0]);
 
         try {
             const res = await fetch('/run_agent', { method: 'POST', body: formData });
@@ -89,25 +228,46 @@
             if (data.error) {
                 alert(data.error);
             } else {
-                // نمایش مراحل
-                const stepsDiv = document.getElementById('steps-list');
-                data.steps.forEach(step => {
-                    stepsDiv.innerHTML += `<div class="step-item">✓ ${step}</div>`;
-                });
-
-                // نمایش پاسخ (رندر مارک‌داون)
+                // 1. Populate Answer
                 document.getElementById('answer-content').innerHTML = marked.parse(data.answer);
 
-                // نمایش منابع
-                const sourcesDiv = document.getElementById('sources-list');
-                sourcesDiv.innerHTML = '';
-                if (data.sources.length === 0) sourcesDiv.innerHTML = '<span>منبع خاصی یافت نشد.</span>';
-                data.sources.forEach(src => {
-                    let link = src.startsWith('http') ? `<a href="${src}" target="_blank" class="source-tag">${src}</a>` : `<span class="source-tag">${src}</span>`;
-                    sourcesDiv.innerHTML += link;
+                // 2. Populate Queries
+                const qList = document.getElementById('queries-list');
+                qList.innerHTML = '';
+                data.generated_queries.forEach(q => {
+                    qList.innerHTML += `<span class="query-tag">🔎 ${q}</span>`;
                 });
 
-                document.getElementById('output-area').style.display = 'block';
+                // 3. Populate Sources
+                const sList = document.getElementById('sources-list');
+                sList.innerHTML = '';
+                data.all_sources.forEach(src => {
+                    sList.innerHTML += `
+                        <div class="source-card">
+                            <span>${src.type === 'file' ? '📄' : '🌐'} ${src.title}</span>
+                            ${src.url !== '#' ? `<a href="${src.url}" target="_blank">مشاهده لینک</a>` : ''}
+                        </div>`;
+                });
+
+                // 4. Populate Chunks
+                const cList = document.getElementById('chunks-list');
+                cList.innerHTML = '';
+                data.retrieved_chunks.forEach(ch => {
+                    const srcName = ch.title || ch.source || 'Unknown';
+                    cList.innerHTML += `
+                        <div class="chunk-card">
+                            <small style="color:#64748b; display:block; margin-bottom:5px;">منبع: ${srcName}</small>
+                            ${ch.text}
+                        </div>`;
+                });
+
+                // 5. Populate Logs
+                const lList = document.getElementById('logs-list');
+                lList.innerHTML = '';
+                data.logs.forEach(l => lList.innerHTML += `<div>> ${l}</div>`);
+
+                // Show Results
+                document.getElementById('results-area').style.display = 'block';
             }
 
         } catch (e) {
@@ -115,7 +275,7 @@
             alert("خطا در ارتباط با سرور");
         } finally {
             btn.disabled = false;
-            btn.innerText = "🚀 جستجو و تحلیل";
+            loader.style.display = 'none';
         }
     }
 </script>
