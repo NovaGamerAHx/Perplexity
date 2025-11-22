@@ -12,7 +12,7 @@ app = Flask(__name__)
 # جدیدترین مدل گوگل در حال حاضر gemini-2.0-flash-exp است
 # اگر به ارور خوردید، به gemini-1.5-flash برگردانید
 GENERATION_MODEL = "gemini-2.5-flash" 
-EMBEDDING_MODEL = "models/text-embedding-005" 
+EMBEDDING_MODEL = "models/text-embedding-004" 
 
 # --- کلیدها و دیتابیس ---
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
@@ -248,3 +248,4 @@ def run_agent():
 
 if __name__ == '__main__':
     app.run(debug=True)
+
