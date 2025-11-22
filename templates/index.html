@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Perplex-Clone | موتور جستجوی هوشمند</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, sans-serif; background: #f0f2f5; color: #333; max-width: 900px; margin: 0 auto; padding: 20px; }
+        .container { background: white; padding: 30px; border-radius: 15px; box-shadow: 0 5px 20px rgba(0,0,0,0.05); }
+        h1 { color: #2c3e50; text-align: center; }
+        
+        .input-group { margin-bottom: 20px; }
+        input[type="text"] { width: 100%; padding: 15px; border: 2px solid #e0e0e0; border-radius: 10px; font-size: 1.1rem; box-sizing: border-box; }
+        input[type="file"] { margin-top: 10px; }
+        
+        button { width: 100%; background: #3498db; color: white; border: none; padding: 15px; border-radius: 10px; font-size: 1.1rem; cursor: pointer; font-weight: bold; transition: 0.3s; margin-top: 15px; }
+        button:hover { background: #2980b9; }
+        button:disabled { background: #bdc3c7; }
+
+        #output-area { margin-top: 30px; display: none; }
+        
+        .steps-box { background: #f8f9fa; padding: 15px; border-radius: 10px; margin-bottom: 20px; border: 1px solid #e9ecef; font-size: 0.9rem; color: #555; }
+        .step-item { margin-bottom: 5px; display: flex; align-items: center; gap: 10px; }
+        
+        .answer-box { line-height: 1.8; font-size: 1.05rem; color: #222; }
+        .sources-box { margin-top: 20px; padding-top: 10px; border-top: 1px solid #eee; font-size: 0.85rem; color: #666; }
+        .source-tag { display: inline-block; background: #eef2f5; padding: 5px 10px; border-radius: 15px; margin: 5px; text-decoration: none; color: #3498db; }
+        
+        /* Markdown styling simulation */
+        .answer-box h2 { font-size: 1.3rem; color: #333; }
+        .answer-box strong { color: #000; }
+    </style>
+    <!-- کتابخانه برای نمایش زیبای مارک‌داون -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+</head>
+<body>
+
+<div class="container">
+    <h1>🌐 موتور جستجوی هوشمند</h1>
+    
+    <div class="input-group">
+        <input type="text" id="prompt" placeholder="هر سوالی دارید بپرسید (مثلا: آخرین اخبار هوش مصنوعی چیست؟)">
+        <div style="margin-top: 10px; font-size: 0.9rem; color: #666;">
+            <label>📄 آپلود فایل متنی (اختیاری): </label>
+            <input type="file" id="file" accept=".txt">
+        </div>
+        <button id="submit-btn" onclick="runAgent()">🚀 جستجو و تحلیل</button>
+    </div>
+
+    <div id="output-area">
+        <div class="steps-box" id="steps-container">
+            <strong>⚙️ مراحل انجام کار:</strong>
+            <div id="steps-list"></div>
+        </div>
+        
+        <h3>💡 پاسخ هوشمند:</h3>
+        <div class="answer-box" id="answer-content"></div>
+        
+        <div class="sources-box">
+            <strong>🔗 منابع:</strong>
+            <div id="sources-list"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+    async function runAgent() {
+        const prompt = document.getElementById('prompt').value;
+        const fileInput = document.getElementById('file');
+        const btn = document.getElementById('submit-btn');
+        
+        if (!prompt) return alert("لطفا سوال را وارد کنید");
+
+        btn.disabled = true;
+        btn.innerText = "در حال کاوش در وب...";
+        document.getElementById('output-area').style.display = 'none';
+        document.getElementById('steps-list').innerHTML = '';
+        
+        const formData = new FormData();
+        formData.append('prompt', prompt);
+        if (fileInput.files[0]) {
+            formData.append('file', fileInput.files[0]);
+        }
+
+        try {
+            const res = await fetch('/run_agent', { method: 'POST', body: formData });
+            const data = await res.json();
+
+            if (data.error) {
+                alert(data.error);
+            } else {
+                // نمایش مراحل
+                const stepsDiv = document.getElementById('steps-list');
+                data.steps.forEach(step => {
+                    stepsDiv.innerHTML += `<div class="step-item">✓ ${step}</div>`;
+                });
+
+                // نمایش پاسخ (رندر مارک‌داون)
+                document.getElementById('answer-content').innerHTML = marked.parse(data.answer);
+
+                // نمایش منابع
+                const sourcesDiv = document.getElementById('sources-list');
+                sourcesDiv.innerHTML = '';
+                if (data.sources.length === 0) sourcesDiv.innerHTML = '<span>منبع خاصی یافت نشد.</span>';
+                data.sources.forEach(src => {
+                    let link = src.startsWith('http') ? `<a href="${src}" target="_blank" class="source-tag">${src}</a>` : `<span class="source-tag">${src}</span>`;
+                    sourcesDiv.innerHTML += link;
+                });
+
+                document.getElementById('output-area').style.display = 'block';
+            }
+
+        } catch (e) {
+            console.error(e);
+            alert("خطا در ارتباط با سرور");
+        } finally {
+            btn.disabled = false;
+            btn.innerText = "🚀 جستجو و تحلیل";
+        }
+    }
+</script>
+
+</body>
+</html>
