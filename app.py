@@ -15,103 +15,103 @@ MONGO_URI = os.environ.get("MONGO_URI")
 TAVILY_API_KEY = os.environ.get("TAVILY_API_KEY")
 
 DB_NAME = "my_rag_db"
-COLLECTION_NAME = "perplex_context" # کالکشن جدید برای عدم تداخل با قبلی
+COLLECTION_NAME = "perplex_context"
 INDEX_NAME = "vector_index"
 
-genai.configure(api_key=GEMINI_API_KEY)
+# تنظیم هوش مصنوعی
+if GEMINI_API_KEY:
+    genai.configure(api_key=GEMINI_API_KEY)
 
 # اتصال به دیتابیس
 try:
-    mongo_client = MongoClient(MONGO_URI, server_api=ServerApi('1'))
-    db = mongo_client[DB_NAME]
-    collection = db[COLLECTION_NAME]
-    print("✅ Connected to MongoDB")
+    if not MONGO_URI:
+        print("❌ Error: MONGO_URI is missing.")
+        mongo_client = None
+        collection = None
+    else:
+        mongo_client = MongoClient(MONGO_URI, server_api=ServerApi('1'))
+        db = mongo_client[DB_NAME]
+        collection = db[COLLECTION_NAME]
+        print("✅ Connected to MongoDB")
 except Exception as e:
     print(f"❌ DB Connection Error: {e}")
+    mongo_client = None
+    collection = None
 
-# --- 1. چانک‌بندی اصولی و حرفه‌ای (Recursive with Overlap) ---
+# --- 1. چانک‌بندی اصولی ---
 def recursive_chunk_text(text, chunk_size=800, overlap=100):
-    """
-    متن را هوشمندانه تقسیم می‌کند:
-    1. اول سعی می‌کند با دو اینتر (پاراگراف) جدا کند.
-    2. اگر نشد، با یک اینتر.
-    3. اگر نشد، با نقطه (پایان جمله).
-    4. نهایتا با فاصله (کلمات).
-    همچنین مقداری همپوشانی (Overlap) دارد تا معنی در مرز برش‌ها گم نشود.
-    """
     if not text: return []
-    
-    # تمیز کردن اولیه متن
     text = re.sub(r'\s+', ' ', text).strip()
-    
     chunks = []
     start = 0
     text_len = len(text)
 
     while start < text_len:
         end = start + chunk_size
-        
         if end >= text_len:
             chunks.append(text[start:])
             break
             
-        # پیدا کردن بهترین نقطه برش (به ترتیب اولویت)
-        # تلاش برای برش در پایان جمله (نقطه یا علامت سوال/تعجب)
         block = text[start:end]
-        # جستجو برای آخرین جداکننده جمله در نیمه دوم چانک (تا چانک خیلی کوچک نشود)
         split_point = -1
-        
-        # اولویت ۱: پایان پاراگراف یا جمله
-        match = re.search(r'[.!?]\s+', block[::-1]) # جستجو از آخر به اول
+        match = re.search(r'[.!?]\s+', block[::-1])
         if match:
             split_point = len(block) - match.start()
         
-        # اولویت ۲: اگر نقطه نبود، فاصله (Space)
         if split_point == -1:
             last_space = block.rfind(' ')
             if last_space != -1:
                 split_point = last_space
         
-        # اگر هیچکدام نبود (یک کلمه خیلی طولانی)، برش سخت
         if split_point == -1:
             split_point = chunk_size
             
-        # اضافه کردن چانک
         final_chunk = text[start : start + split_point]
         chunks.append(final_chunk)
-        
-        # حرکت به جلو (با کسر همپوشانی برای حفظ کانتکست)
         start += split_point - overlap
         
     return chunks
 
-# --- 2. ابزارهای کمکی ---
-def get_embedding(text):
+# --- 2. ابزارهای کمکی (اصلاح شده) ---
+
+def get_embedding(text, task_type="retrieval_document"):
+    """
+    تولید وکتور با قابلیت هندل کردن خطا
+    task_type: میتونه 'retrieval_document' (برای متن‌ها) یا 'retrieval_query' (برای سوال) باشه
+    """
+    if not text or not text.strip():
+        return None
+        
     try:
         result = genai.embed_content(
-            model="models/text-embedding-005",
+            model="models/text-embedding-004",
             content=text,
-            task_type="retrieval_document"
+            task_type=task_type
         )
         return result['embedding']
-    except:
+    except Exception as e:
+        print(f"⚠️ Embedding Error for text '{text[:30]}...': {e}")
         return None
 
 def generate_search_queries(prompt):
-    """تولید کوئری‌های جستجو با جمینای"""
-    model = genai.GenerativeModel('gemini-2.5-flash')
-    sys_prompt = (
-        f"User prompt: '{prompt}'\n"
-        "Generate 3 specific, effective search queries to find information about this prompt on Google. "
-        "Return ONLY the queries separated by newlines. Do not number them."
-    )
-    resp = model.generate_content(sys_prompt)
-    return [q.strip() for q in resp.text.split('\n') if q.strip()]
+    try:
+        model = genai.GenerativeModel('gemini-1.5-flash')
+        sys_prompt = (
+            f"User prompt: '{prompt}'\n"
+            "Generate 3 specific search queries to find information about this prompt. "
+            "Return ONLY the queries separated by newlines."
+        )
+        resp = model.generate_content(sys_prompt)
+        return [q.strip() for q in resp.text.split('\n') if q.strip()]
+    except:
+        return [prompt] # اگر مدل خطا داد، خود سوال را جستجو کن
 
 def tavily_search(queries):
-    """جستجو در وب با Tavily"""
+    if not TAVILY_API_KEY:
+        print("⚠️ Tavily Key missing")
+        return []
+        
     combined_results = []
-    # فقط کوئری اول و دوم را جستجو میکنیم تا سرعت بالا بماند
     for q in queries[:2]: 
         try:
             resp = requests.post(
@@ -120,8 +120,6 @@ def tavily_search(queries):
                     "api_key": TAVILY_API_KEY,
                     "query": q,
                     "search_depth": "basic",
-                    "include_answer": False,
-                    "include_raw_content": False,
                     "max_results": 3
                 }
             )
@@ -139,106 +137,123 @@ def home():
 
 @app.route('/run_agent', methods=['POST'])
 def run_agent():
-    # پاک کردن حافظه قبلی (برای اینکه هر بار یک سرچ جدید باشد)
-    # در نسخه واقعی باید Session ID داشته باشیم، ولی برای استفاده شخصی پاک کردن اوکیه
+    if collection is None:
+        return jsonify({"error": "خطا در اتصال به پایگاه داده"}), 500
+
+    # پاکسازی دیتای قبلی
     try:
         collection.delete_many({}) 
-    except: pass
+    except Exception as e:
+        print(f"Delete Error: {e}")
 
     prompt = request.form.get('prompt')
     file = request.files.get('file')
     
     if not prompt:
-        return jsonify({"error": "لطفا سوال خود را وارد کنید"}), 400
+        return jsonify({"error": "سوال وارد نشده است"}), 400
 
-    steps = [] # لاگ مراحل برای نمایش به کاربر
+    steps = []
     
-    # --- مرحله ۱: پردازش فایل (اگر باشد) ---
+    # --- مرحله ۱: پردازش فایل ---
     if file and file.filename != '':
-        steps.append("📂 در حال پردازش فایل آپلود شده...")
-        text = file.read().decode('utf-8')
-        chunks = recursive_chunk_text(text)
-        docs = []
-        for ch in chunks:
-            emb = get_embedding(ch)
-            if emb:
-                docs.append({"text": ch, "embedding": emb, "source": "File: " + file.filename})
-        if docs:
-            collection.insert_many(docs)
-            steps.append(f"✅ {len(docs)} بخش از فایل ذخیره شد.")
+        steps.append("📂 پردازش فایل آپلود شده...")
+        try:
+            text = file.read().decode('utf-8')
+            chunks = recursive_chunk_text(text)
+            docs = []
+            for ch in chunks:
+                # اینجا مهم: نوع تسک را داکیومنت می‌گذاریم
+                emb = get_embedding(ch, task_type="retrieval_document")
+                if emb:
+                    docs.append({"text": ch, "embedding": emb, "source": "File: " + file.filename})
+            if docs:
+                collection.insert_many(docs)
+                steps.append(f"✅ {len(docs)} بخش از فایل ذخیره شد.")
+        except Exception as e:
+            steps.append(f"❌ خطا در پردازش فایل: {str(e)}")
 
-    # --- مرحله ۲: تولید کوئری و جستجو ---
-    steps.append("🌎 در حال طراحی کوئری‌های جستجو...")
+    # --- مرحله ۲: جستجو در وب ---
+    steps.append("🌎 جستجو در وب...")
     queries = generate_search_queries(prompt)
-    steps.append(f"🔍 جستجو در وب برای: {queries}")
-    
     search_results = tavily_search(queries)
     
-    # --- مرحله ۳: پردازش نتایج وب ---
-    steps.append(f"🌐 {len(search_results)} صفحه وب پیدا شد. در حال مطالعه و چانک‌بندی...")
-    web_docs = []
-    for res in search_results:
-        # محتوای وب را هم چانک میکنیم
-        content = res.get('content', '')
-        web_chunks = recursive_chunk_text(content, chunk_size=800, overlap=100)
-        for ch in web_chunks:
-            emb = get_embedding(ch)
-            if emb:
-                web_docs.append({
-                    "text": ch, 
-                    "embedding": emb, 
-                    "source": res.get('url'),
-                    "title": res.get('title')
-                })
-    
-    if web_docs:
-        collection.insert_many(web_docs)
-        steps.append(f"🧠 {len(web_docs)} بخش دانش از وب به حافظه اضافه شد.")
+    if search_results:
+        steps.append(f"🌐 {len(search_results)} منبع پیدا شد.")
+        web_docs = []
+        for res in search_results:
+            content = res.get('content', '')
+            web_chunks = recursive_chunk_text(content, chunk_size=800, overlap=100)
+            for ch in web_chunks:
+                # اینجا هم نوع تسک داکیومنت است
+                emb = get_embedding(ch, task_type="retrieval_document")
+                if emb:
+                    web_docs.append({
+                        "text": ch, 
+                        "embedding": emb, 
+                        "source": res.get('url'),
+                        "title": res.get('title')
+                    })
+        if web_docs:
+            collection.insert_many(web_docs)
 
-    # --- مرحله ۴: بازیابی (Retrieval) ---
-    steps.append("🤔 در حال فکر کردن و جمع‌بندی اطلاعات...")
+    # --- مرحله ۳: بازیابی (Retrieval) ---
+    steps.append("🤔 تحلیل نهایی...")
     
-    # وکتور سوال اصلی
-    query_emb = get_embedding(prompt)
+    # اصلاح حیاتی: اینجا نوع تسک را 'query' می‌گذاریم و چک می‌کنیم None نباشد
+    query_emb = get_embedding(prompt, task_type="retrieval_query")
+    
+    if query_emb is None:
+        return jsonify({
+            "error": "خطا در تولید وکتور برای سوال. لطفا دوباره تلاش کنید.",
+            "steps": steps
+        }), 500
     
     pipeline = [
         {
             "$vectorSearch": {
                 "index": INDEX_NAME,
                 "path": "embedding",
-                "queryVector": query_emb,
+                "queryVector": query_emb, # این مقدار نباید None باشد
                 "numCandidates": 100,
-                "limit": 8 # 8 تکه مرتبط‌ترین را بردار
+                "limit": 8
             }
         },
         {"$project": {"_id": 0, "text": 1, "source": 1, "title": 1}}
     ]
-    retrieved = list(collection.aggregate(pipeline))
     
-    # --- مرحله ۵: تولید پاسخ نهایی ---
+    try:
+        retrieved = list(collection.aggregate(pipeline))
+    except Exception as e:
+        print(f"Aggregation Error: {e}")
+        return jsonify({"error": f"خطای دیتابیس: {str(e)}", "steps": steps}), 500
+    
+    # --- مرحله ۴: تولید پاسخ ---
     context_text = ""
     sources_list = set()
     
-    for doc in retrieved:
-        source_info = doc.get('title', doc.get('source'))
-        context_text += f"Source ({source_info}): {doc['text']}\n\n"
-        sources_list.add(doc.get('source'))
+    if not retrieved:
+        context_text = "No specific context found within the allowed sources."
+    else:
+        for doc in retrieved:
+            source_info = doc.get('title', doc.get('source'))
+            context_text += f"Source ({source_info}): {doc['text']}\n\n"
+            sources_list.add(doc.get('source'))
 
-    final_model = genai.GenerativeModel('gemini-2.5-flash')
-    final_prompt = (
-        f"You are an AI research assistant (like Perplexity). \n"
-        f"User Question: {prompt}\n\n"
-        f"Based ONLY on the following context, write a comprehensive, well-structured answer. "
-        f"Cite your sources using [1], [2] etc. if possible, or explicitly mention the source name.\n"
-        f"If the context doesn't answer the question, admit it.\n\n"
-        f"CONTEXT:\n{context_text}"
-    )
-    
-    answer_response = final_model.generate_content(final_prompt)
+    try:
+        final_model = genai.GenerativeModel('gemini-1.5-flash')
+        final_prompt = (
+            f"User Question: {prompt}\n\n"
+            f"Based ONLY on the following context, write a detailed answer with citations.\n"
+            f"CONTEXT:\n{context_text}"
+        )
+        answer_response = final_model.generate_content(final_prompt)
+        answer_text = answer_response.text
+    except Exception as e:
+        answer_text = f"خطا در تولید پاسخ نهایی: {str(e)}"
     
     return jsonify({
         "steps": steps,
-        "answer": answer_response.text,
+        "answer": answer_text,
         "sources": list(sources_list)
     })
 
