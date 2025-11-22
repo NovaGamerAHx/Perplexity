@@ -71,6 +71,7 @@ def recursive_chunk_text(text, chunk_size=1000, overlap=100):
             
         chunks.append(text[start : start + split_point])
         start += split_point - overlap
+    print(chunks)
     return chunks
 
 def get_embedding(text, task_type="retrieval_document"):
@@ -248,4 +249,5 @@ def run_agent():
 
 if __name__ == '__main__':
     app.run(debug=True)
+
 
